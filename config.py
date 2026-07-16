@@ -23,6 +23,93 @@ ENABLE_CORPUS_ANCHORED_NOVELTY: bool = os.getenv(
     "IDEAGRAPH_CORPUS_ANCHORED_NOVELTY", "true",
 ).lower() == "true"
 
+# Auto-score arXiv novelty after every "Run Automated Scientist" pass.
+# When ON (default), the pipeline runner fetches the topic's live arXiv
+# corpus once and stamps execution_meta["arxiv_novelty"] onto each idea
+# so the 📡 arXiv Novelty score/sort is populated without a manual click.
+# Best-effort: a rate-limit / network failure never aborts the run.
+# Kill-switch for deployments that want to avoid the extra arXiv call.
+AUTO_ARXIV_NOVELTY: bool = os.getenv(
+    "IDEAGRAPH_AUTO_ARXIV_NOVELTY", "true",
+).lower() == "true"
+
+# Corpus size (max arXiv papers) for the auto-scoring pass above.
+# Matches the manual panel's default of 30. 1 arXiv call, disk-cached.
+AUTO_ARXIV_MAX_PAPERS: int = int(os.getenv("IDEAGRAPH_AUTO_ARXIV_MAX_PAPERS", "30"))
+
+# Auto-score *blended* multi-corpus novelty after every run too.
+# Blends arXiv + Semantic Scholar + OpenAlex (the legitimate, ToS-clean
+# stand-in for ResearchGate, which has no usable API) via the weights in
+# multi_corpus_novelty.DEFAULT_WEIGHTS, stamping
+# execution_meta["blended_novelty"] onto each idea. Best-effort: any
+# source failing (rate-limit / network) just drops its weight; the run
+# is never aborted. Kill-switch for deployments wanting fewer API calls.
+AUTO_BLENDED_NOVELTY: bool = os.getenv(
+    "IDEAGRAPH_AUTO_BLENDED_NOVELTY", "true",
+).lower() == "true"
+
+# Corpus size per source for the blended auto-scoring pass.
+AUTO_BLENDED_MAX_PAPERS: int = int(os.getenv("IDEAGRAPH_AUTO_BLENDED_MAX_PAPERS", "30"))
+
+# OpenAlex polite-pool contact. Setting an email routes requests to
+# OpenAlex's faster, more reliable pool. Optional but recommended.
+OPENALEX_MAILTO: str = os.getenv("OPENALEX_MAILTO", "")
+
+# Crossref polite-pool contact (falls back to OPENALEX_MAILTO if unset).
+# Both arXiv/S2/OpenAlex/Crossref/Europe PMC feed the blended novelty
+# score; Europe PMC needs no contact email.
+CROSSREF_MAILTO: str = os.getenv("CROSSREF_MAILTO", "")
+
+# Semantic (dense-embedding) novelty — the "advanced" tier. Unlike every
+# other scorer (which is lexical TF-IDF), this measures 1 − max cosine in
+# sentence-embedding space, catching conceptual novelty/paraphrase that
+# word-overlap misses. Auto-scored after each run (best-effort: if the
+# embedding model can't load, the run is unaffected). Reuses the cached
+# arXiv corpus — no extra network call beyond the arXiv auto-score.
+AUTO_SEMANTIC_NOVELTY: bool = os.getenv(
+    "IDEAGRAPH_AUTO_SEMANTIC_NOVELTY", "true",
+).lower() == "true"
+
+# sentence-transformers model for semantic novelty. Default all-MiniLM-L6-v2
+# (~80MB, fast, downloaded once from HuggingFace and disk-cached).
+SEMANTIC_NOVELTY_MODEL: str = os.getenv(
+    "IDEAGRAPH_SEMANTIC_NOVELTY_MODEL", "sentence-transformers/all-MiniLM-L6-v2",
+)
+
+# Corpus size (max arXiv papers) for the semantic auto-scoring pass.
+AUTO_SEMANTIC_MAX_PAPERS: int = int(os.getenv("IDEAGRAPH_AUTO_SEMANTIC_MAX_PAPERS", "30"))
+
+# Cross-encoder RERANKED novelty — the top tier (more accurate than the
+# bi-encoder semantic score). Two-stage retrieve-then-rerank: bi-encoder
+# shortlists top-K papers, cross-encoder rescoring those pairs jointly.
+# Auto-scored after each run (best-effort; reuses the cached arXiv corpus
+# + shared bi-encoder). Heavier than the other tiers (one transformer
+# forward pass per (idea, candidate) pair), so it has its own kill-switch.
+AUTO_RERANKED_NOVELTY: bool = os.getenv(
+    "IDEAGRAPH_AUTO_RERANKED_NOVELTY", "true",
+).lower() == "true"
+
+# Cross-encoder model for reranked novelty (~80MB, downloaded once).
+CROSSENCODER_NOVELTY_MODEL: str = os.getenv(
+    "IDEAGRAPH_CROSSENCODER_NOVELTY_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2",
+)
+
+# Corpus size + shortlist depth for the reranked auto-scoring pass.
+AUTO_RERANKED_MAX_PAPERS: int = int(os.getenv("IDEAGRAPH_AUTO_RERANKED_MAX_PAPERS", "30"))
+RERANKED_TOP_K: int = int(os.getenv("IDEAGRAPH_RERANKED_TOP_K", "15"))
+
+# Mahalanobis (whitened-embedding) DISTRIBUTIONAL novelty. Models the
+# corpus as a Gaussian in embedding space and measures distance to the
+# whole distribution (anisotropy-aware), not just the nearest paper.
+# Reuses the shared bi-encoder + cached arXiv corpus; adds only a small
+# Ledoit-Wolf covariance fit. Best-effort, gated, runs after the others.
+AUTO_MAHALANOBIS_NOVELTY: bool = os.getenv(
+    "IDEAGRAPH_AUTO_MAHALANOBIS_NOVELTY", "true",
+).lower() == "true"
+
+# Corpus size (max arXiv papers) for the Mahalanobis auto-scoring pass.
+AUTO_MAHALANOBIS_MAX_PAPERS: int = int(os.getenv("IDEAGRAPH_AUTO_MAHALANOBIS_MAX_PAPERS", "30"))
+
 # Visual rendering (🎨 Visual Abstract panel on each idea card).
 # Uses the Nano Banana / FLUX image API. When OFF, the panel is hidden
 # from the Ideas tab and no requests are made even if a key is set.
